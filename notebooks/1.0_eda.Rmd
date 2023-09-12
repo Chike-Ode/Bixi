@@ -1,0 +1,72 @@
+---
+title: "Bixi Exploratory Data Analysis"
+author: "Chike Odenigbo, Or Shkoler, Charles Julien, Atul Sharma & Gabriel Jobert"
+date: "2023-09-11"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#install.packages("rstudioapi")
+tinytex::install_tinytex()
+# Install and load the tidyverse package
+install.packages("tidyverse")
+library(tidyverse)
+library(janitor)
+```
+
+```{r}
+nb_dir = dirname(rstudioapi::getSourceEditorContext()$path)
+root_dir = dirname(nb_dir)
+raw_data_dir = file.path(root_dir, "data","raw")
+raw_data_dir
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+df = read.csv(file.path(raw_data_dir,"bixi10.csv"))
+df
+```
+
+## Preprocessing
+
+```{r}
+#df$station = as.factor(df$station)
+#df$mem = as.factor(df$mem)
+#df$holiday = as.factor(df$holiday)
+df %>% mutate(holiday= factor(holiday),
+              mem= factor(mem),
+              station= factor(station))
+df
+```
+
+## Global Analysis
+
+```{r}
+#getwd()
+dirname(rstudioapi::getSourceEditorContext()$path)
+```
