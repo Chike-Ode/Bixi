@@ -7,7 +7,7 @@ output:
   html_document: default
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE, warning=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -18,6 +18,12 @@ knitr::opts_chunk$set(echo = TRUE)
 #install.packages("tidyverse")
 #install.packages('devtools')
 #devtools::install_github('bbc/bbplot')
+#install.packages('Hmisc')
+#install.packages('corrmorant')
+#remotes::install_github("r-link/corrmorant")
+#install.packages('DataExplorer')
+#install.packages('skimr')
+#install.packages('PerformanceAnalytics')
 ```
 
 ```{r}
@@ -25,6 +31,16 @@ library(bbplot)
 library(tidyverse)
 library(janitor)
 library(ggplot2)
+library(Hmisc)
+library(data.table)
+library(corrmorant)
+library(DataExplorer)
+library(skimr)
+library(PerformanceAnalytics)
+```
+
+```{r}
+options(repr.plot.width=25, repr.plot.height=25)
 ```
 
 ```{r}
@@ -60,39 +76,117 @@ attach(df)
 df
 ```
 
-## Preprocessing
+## Preprocessing & Feature Engineering
 
 ```{r}
 df <- df %>% mutate(
               holiday = factor(holiday),
               mem = factor(mem),
+              mm = factor(mm),
               station = factor(station),
-              wday_ordered = factor(wday, levels = c("Monday", "Tuesday", "Wednesday", 
-                          "Thursday", "Friday", "Saturday", "Sunday"),ordered = TRUE),
+              wday_ordered = factor(wday, levels = c("Monday", "Tuesday", "Wednesday",  "Thursday", "Friday", "Saturday", "Sunday"),ordered = TRUE),
               season = ifelse((mm %in% c(12,1,2)), 'Winter',
                        ifelse((mm %in% c(3,4,5)), 'Spring',
                        ifelse((mm %in% c(6,7,8)), 'Summer',
-                       ifelse((mm %in% c(9,10,11)), 'fall','NO_SEASON')))),
+                       ifelse((mm %in% c(9,10,11)), 'Fall','No Season')))),
               
               rev_per_min = rev/dur,
+              rev_per_trip = rev/n_tot,
+              
+              percent_AM = n_AM/n_tot,
+              percent_PM = n_PM/n_tot,
+              
+              percent_AM_PM_delta = percent_AM - percent_PM,
+              n_AM_PM_delta = n_AM - n_PM,
+              
+              am_pm_ind = ifelse(n_AM>=n_PM, 'AM','PM'),
                 
-              wknd_ind = ifelse((wday %in% c("Sunday","Saturday")), 1
-                        ,ifelse((wday %in% c("Friday","Monday") & holiday=='1'),1,0)))
+              wknd_ind = ifelse((wday %in% c("Sunday","Saturday")), 'Weekend'
+                        ,ifelse((wday %in% c("Friday","Monday") & holiday=='1'),'Long Weekend','Weekday')))
+        
   
 
-df[df$holiday == 1,]
+df#[df$holiday == 1,]
 
 ```
 
 ```{r}
-summary(df)
+df %>% plot_histogram()
 ```
 
 ```{r}
-ggplot(df, aes(x = as.factor(mm), y = dur), fill = as.factor(mm)) + 
-  stat_boxplot(geom = "errorbar", # Error bars
-               width = 0.25) +    # Bars width
-  geom_boxplot()
+df %>% plot_bar()
+```
+
+```{r}
+df %>% profile_missing() %>% arrange(desc(pct_missing))
+```
+
+```{r}
+skim(df)
+```
+
+```{r}
+# Density plots with semi-transparent fill
+p <- ggplot(df, aes(x=rev_per_trip, fill=wknd_ind)) +
+  geom_density(alpha=.3) +
+ theme_bw()#+
+  #geom_vline(data=df, aes(xintercept=rev_per_trip.mean,  colour=wknd_ind),
+  #             linetype="dashed", linewidth=1)
+print(p)
+```
+
+```{r}
+p <- ggplot(df,aes(x=wknd_ind, y=dur, fill=wknd_ind)) + 
+  geom_boxplot(width=0.5,lwd=0.3)+
+  labs(subtitle="Filling Boxplot with Colors by a Variable")+
+ theme_bw()
+
+#ggplot(df, aes(x=dur, fill=wknd_ind)) +
+#  geom_density(alpha=.3) #+
+  #geom_vline(data=df, aes(xintercept=rev_per_trip.mean,  colour=wknd_ind),
+  #             linetype="dashed", linewidth=1)
+print(p)
+```
+
+```{r}
+p <- ggplot(df,aes(x=season, y=dur, fill=season)) + 
+  geom_boxplot(width=0.5,lwd=0.3)+
+  labs(subtitle="Filling Boxplot with Colors by a Variable")+
+ theme_bw()
+
+print(p)
+```
+
+```{r warning=FALSE, fig.width=35,fig.height=35}
+#as.matrix(lapply(select_if(df, is.numeric), na.omit))
+#as.matrix(df)
+df %>% select(where(is.numeric)) %>% na.omit()
+corrmorant(as.matrix(df %>% select(where(is.numeric)) %>% na.omit()), style = "binned") +
+  theme_bw() +
+  labs(title = "Correlations")+
+theme(text = element_text(size=33),
+axis.text.x = element_text(angle=90, hjust=1))
+```
+
+```{r warning=FALSE}
+chart.Correlation(as.matrix(df %>% select(where(is.numeric)) %>% na.omit()), histogram=TRUE, pch="+")
+```
+
+```{r}
+p <- ggplot(df, aes(x = avg, y = rev_per_min)) +
+    geom_smooth(data = df, method = "lm", 
+                se = FALSE, col = "#ee1515") +
+    geom_point(aes(color = wknd_ind)) +
+    # Title
+    labs(title = "Relationship between Duration and the Temperature") +
+    # Axis
+    scale_y_continuous(labels = function(y) paste0("$",y)) +
+    scale_x_continuous(labels = function(x) paste0(x, " Mins")) +
+    # Style
+    #bbc_style() +
+    theme(plot.title = element_text(color = "#063376"))
+print(p)
 ```
 
 ## Global Analysis
@@ -103,10 +197,10 @@ dirname(rstudioapi::getSourceEditorContext()$path)
 ```
 
 ```{r}
-p <- ggplot(df, aes_string(x = 'temp', y = 'dur')) +
+p <- ggplot(df, aes(x = log(temp), y = log(n_tot))) +
     geom_smooth(data = df, method = "lm", 
                 se = FALSE, col = "#ee1515") +
-    geom_point(aes_string(color = 'wday')) +
+    geom_point(aes(color = wknd_ind)) +
     # Title
     labs(title = "Relationship between Duration and the Temperature") +
     # Axis
