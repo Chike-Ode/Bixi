@@ -13,11 +13,18 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 #install.packages("rstudioapi")
-tinytex::install_tinytex()
+#tinytex::install_tinytex()
 # Install and load the tidyverse package
-install.packages("tidyverse")
+#install.packages("tidyverse")
+#install.packages('devtools')
+#devtools::install_github('bbc/bbplot')
+```
+
+```{r}
+library(bbplot)
 library(tidyverse)
 library(janitor)
+library(ggplot2)
 ```
 
 ```{r}
@@ -49,19 +56,43 @@ Note that the `echo = FALSE` parameter was added to the code chunk to prevent pr
 
 ```{r}
 df = read.csv(file.path(raw_data_dir,"bixi10.csv"))
+attach(df)
 df
 ```
 
 ## Preprocessing
 
 ```{r}
-#df$station = as.factor(df$station)
-#df$mem = as.factor(df$mem)
-#df$holiday = as.factor(df$holiday)
-df %>% mutate(holiday= factor(holiday),
-              mem= factor(mem),
-              station= factor(station))
-df
+df <- df %>% mutate(
+              holiday = factor(holiday),
+              mem = factor(mem),
+              station = factor(station),
+              wday_ordered = factor(wday, levels = c("Monday", "Tuesday", "Wednesday", 
+                          "Thursday", "Friday", "Saturday", "Sunday"),ordered = TRUE),
+              season = ifelse((mm %in% c(12,1,2)), 'Winter',
+                       ifelse((mm %in% c(3,4,5)), 'Spring',
+                       ifelse((mm %in% c(6,7,8)), 'Summer',
+                       ifelse((mm %in% c(9,10,11)), 'fall','NO_SEASON')))),
+              
+              rev_per_min = rev/dur,
+                
+              wknd_ind = ifelse((wday %in% c("Sunday","Saturday")), 1
+                        ,ifelse((wday %in% c("Friday","Monday") & holiday=='1'),1,0)))
+  
+
+df[df$holiday == 1,]
+
+```
+
+```{r}
+summary(df)
+```
+
+```{r}
+ggplot(df, aes(x = as.factor(mm), y = dur), fill = as.factor(mm)) + 
+  stat_boxplot(geom = "errorbar", # Error bars
+               width = 0.25) +    # Bars width
+  geom_boxplot()
 ```
 
 ## Global Analysis
@@ -69,4 +100,28 @@ df
 ```{r}
 #getwd()
 dirname(rstudioapi::getSourceEditorContext()$path)
+```
+
+```{r}
+p <- ggplot(df, aes_string(x = 'temp', y = 'dur')) +
+    geom_smooth(data = df, method = "lm", 
+                se = FALSE, col = "#ee1515") +
+    geom_point(aes_string(color = 'wday')) +
+    # Title
+    labs(title = "Relationship between Duration and the Temperature") +
+    # Axis
+    scale_x_continuous(labels = function(x) paste0(x, " Degrees")) +
+    scale_y_continuous(labels = function(y) paste0(y, " Mins")) +
+    # Style
+    #bbc_style() +
+    theme(plot.title = element_text(color = "#063376"))
+print(p)
+```
+
+```{r}
+ggplot(df, aes(x = log('Temp'), y = log(drat))) +
+        geom_point(aes(color = factor(gear))) +
+        stat_smooth(method = "lm",
+        col = "#C42126", se = FALSE, size = 1
+)
 ```
